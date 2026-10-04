@@ -1,19 +1,32 @@
 --[[
     Wave V4 Main
-    Регистрирует модуль Huds внутри Vape.
+    Регистрирует модуль Huds внутри Vape (после его полной загрузки).
 ]]
 
 local RAW = "https://raw.githubusercontent.com/H3llH3IM11/wave-v4/main/"
 
-repeat task.wait() until shared.vape and shared.vape.Loaded
+-- ждём Vape
+repeat task.wait() until shared.vape
 
 local vape = shared.vape
 
--- проверка что модуль уже есть (чтобы не грузить дважды)
+-- ждём, пока категории создадутся
+local category
+repeat
+    task.wait(0.1)
+    for _, name in ipairs({"Combat", "Render", "Utility", "Legit", "Blatant", "Settings", "Inventory", "Target Info"}) do
+        if vape.Categories and typeof(vape.Categories[name]) == "table" then
+            category = vape.Categories[name]
+            break
+        end
+    end
+until category ~= nil
+
+-- проверка "не грузили дважды"
 if shared.WaveMainLoaded then return end
 shared.WaveMainLoaded = true
 
--- === ФУНКЦИЯ ЗАГРУЗКИ HUD ===
+-- === СОСТОЯНИЕ ===
 local activeHud = nil
 local activePreset = "none"
 
@@ -27,16 +40,14 @@ end
 
 local function loadHud(preset)
     unloadCurrent()
-
     if preset == "none" then return end
 
-    local file = nil
+    local file
     if preset == "wexside hud" then
         file = "huds/wexside.lua"
     elseif preset == "wave v4 hud" then
         file = "huds/wavev4.lua"
     end
-
     if not file then return end
 
     local url = RAW .. file
@@ -62,46 +73,21 @@ local function loadHud(preset)
     activePreset = preset
 end
 
--- === СОЗДАНИЕ КАТЕГОРИИ ===
--- если категории Huds нет — создаём через Main
-local hudsCategory
-if vape.Categories and vape.Categories.Huds then
-    hudsCategory = vape.Categories.Huds
-elseif vape.Categories and vape.Categories.Main then
-    local ok, cat = pcall(function()
-        return vape.Categories.Main:CreateCategory({
-            Name = "Huds",
-            Tooltip = "Custom HUD presets"
-        })
-    end)
-    if ok and cat then
-        hudsCategory = cat
-    end
-end
-
-if not hudsCategory then
-    warn("[Wave] не удалось создать категорию Huds")
-    return
-end
-
 -- === СОЗДАНИЕ МОДУЛЯ ===
-local hudsModule = hudsCategory:CreateModule({
+local hudsModule = category:CreateModule({
     Name = "Huds",
     Function = function(callback)
         if callback then
-            -- при включении — если пресет уже выбран, загружаем
             if activePreset ~= "none" then
                 loadHud(activePreset)
             end
         else
-            -- при выключении — грузим ВСЁ
             unloadCurrent()
         end
     end,
     Tooltip = "Choose a custom HUD preset"
 })
 
--- === ДРОПДАУН ПРЕСЕТОВ ===
 hudsModule:CreateDropdown({
     Name = "Preset",
     List = {"none", "wexside hud", "wave v4 hud"},
